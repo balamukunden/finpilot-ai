@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   FinPilot AI Design Tokens — premium navy + indigo + cyan fintech system
+   Background:  dark navy is the dominant visual foundation
+   Indigo:      primary actions, selected navigation, important controls
+   Cyan:        AI identity accent only
+   Mint:        income, positive returns, savings progress, healthy indicators
+   Amber:       warnings, spending alerts, attention-required conditions
+   Rose:        errors, overspending, financial risk, destructive actions
+   --------------------------------------------------------------------------- */
+:root {
+  /* ------------------------------------------------------------------
+     Design tokens (hex — source of truth)
+     ------------------------------------------------------------------ */
+  --color-background: #070B14;
+  --color-surface: #101827;
+  --color-surface-elevated: #172236;
+  --color-surface-lighter: #1E2B42;
+
+  --color-primary: #6366F1;
+  --color-primary-hover: #818CF8;
+  --color-primary-dark: #4F46E5;
+
+  --color-ai: #22D3EE;
+  --color-ai-light: #67E8F9;
+  --color-ai-dark: #06B6D4;
+
+  --color-success: #34D399;
+  --color-success-light: #6EE7B7;
+  --color-warning: #FBBF24;
+  --color-warning-light: #FCD34D;
+  --color-danger: #FB7185;
+  --color-danger-light: #FDA4AF;
+
+  --color-text-primary: #F8FAFC;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+
+  --color-border: #243044;
+
+  /* ------------------------------------------------------------------
+     RGB channel variants of the same tokens.
+     Tailwind v3 requires these (consumed via `rgb(var(--x) / <alpha>)`)
+     so opacity modifiers like `bg-primary/20`, `shadow-primary/5` work.
+     ------------------------------------------------------------------ */
+  --color-background-rgb: 7 11 20;
+  --color-surface-rgb: 16 24 39;
+  --color-surface-elevated-rgb: 23 34 54;
+  --color-surface-lighter-rgb: 30 43 66;
+
+  --color-primary-rgb: 99 102 241;
+  --color-primary-hover-rgb: 129 140 248;
+  --color-primary-dark-rgb: 79 70 229;
+
+  --color-ai-rgb: 34 211 238;
+  --color-ai-light-rgb: 103 232 249;
+  --color-ai-dark-rgb: 6 182 212;
+
+  --color-success-rgb: 52 211 153;
+  --color-success-light-rgb: 110 231 183;
+  --color-warning-rgb: 251 191 36;
+  --color-warning-light-rgb: 252 211 77;
+  --color-danger-rgb: 251 113 133;
+  --color-danger-light-rgb: 253 164 175;
+
+  --color-text-primary-rgb: 248 250 252;
+  --color-text-secondary-rgb: 148 163 184;
+  --color-text-muted-rgb: 100 116 139;
+
+  --color-border-rgb: 36 48 68;
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-white font-sans antialiased;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-lighter rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl;
+  }
+
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 transition-all duration-300;
+  }
+
+  .glass-card:hover {
+    @apply bg-white/10 border-white/20 shadow-lg shadow-primary/5;
+    transform: translateY(-2px);
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary;
+    background-size: 200% 200%;
+    animation: gradient 8s ease infinite;
+  }
+
+  .gradient-border {
+    @apply relative;
+  }
+
+  .gradient-border::before {
+    content: '';
+    @apply absolute inset-0 rounded-2xl;
+    padding: 1px;
+    background: linear-gradient(135deg, #6366F1, #22D3EE, #6366F1);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: xor;
+    -webkit-mask-composite: xor;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-primary to-primary-dark text-white font-semibold rounded-xl
+    transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02]
+    active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-surface-light text-white font-semibold rounded-xl border border-white/10
+    transition-all duration-300 hover:bg-surface-lighter hover:border-white/20 hover:scale-[1.02]
+    active:scale-[0.98];
+  }
+
+  .btn-accent {
+    @apply px-6 py-3 bg-gradient-to-r from-primary to-primary-dark text-white font-semibold rounded-xl
+    transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02]
+    active:scale-[0.98];
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-white
+    outline-none transition-all duration-300
+    focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:bg-surface;
+  }
+
+  .input-field::placeholder {
+    color: var(--color-text-muted);
+    opacity: 1;
+  }
+
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold font-display;
+  }
+
+  .card-stat {
+    @apply glass-card flex flex-col gap-2;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
+    hover:text-white hover:bg-white/5;
+    color: var(--color-text-secondary);
+  }
+
+  .sidebar-link.active {
+    @apply text-white bg-primary/10 border-l-2 border-primary;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+  }
+}

@@ -1,0 +1,53 @@
+# ============================================
+# FinPilot AI — Root .gitignore
+# ============================================
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files (secrets)
+.env
+.env.local
+.env.development
+.env.production
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# Uploads & data
+uploads/
+.data/
+
+# Local Node.js installation
+.nodejs/
+
+# OS files
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Agents / AI tooling local state
+.agents/
