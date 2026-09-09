@@ -1,70 +1,57 @@
-const Redis = require('ioredis');
 const env = require('./env');
+const logger = require('./logger');
 
 /**
- * Redis client singleton.
- * Used for caching, session management, and rate limiting state.
+ * Optional Redis client (REDIS_URL).
+ *
+ * When REDIS_URL is set, rate limits and the per-account login cooldown are
+ * backed by a shared store so they survive across Vercel/serverless
+ * instances. When it is not set, the app degrades to per-instance in-memory
+ * stores — usable, but not distributed state. Production deployments should
+ * provide REDIS_URL.
  */
-const redisConfig = {
-  host: env.redis.host,
-  port: env.redis.port,
-  maxRetriesPerRequest: 3,
-  retryStrategy(times) {
-    if (times > 10) {
-      console.warn('[Redis] Max retry attempts reached. Giving up reconnection.');
-      return null; // Stop retrying
-    }
-    const delay = Math.min(times * 200, 5000);
-    console.log(`[Redis] Retry attempt ${times}, next retry in ${delay}ms`);
-    return delay;
-  },
-  lazyConnect: true,
-};
+let client = null;
+let disabled = false;
 
-// Only add password if it is provided
-if (env.redis.password) {
-  redisConfig.password = env.redis.password;
-}
-
-const redis = new Redis(redisConfig);
-
-redis.on('connect', () => {
-  console.log(`[Redis] Connected: ${env.redis.host}:${env.redis.port}`);
-});
-
-redis.on('error', (err) => {
-  console.error('[Redis] Connection error:', err.message);
-});
-
-redis.on('close', () => {
-  console.warn('[Redis] Connection closed.');
-});
-
-/**
- * Connect to Redis (called on app startup).
- */
-async function connectRedis() {
+function getRedis() {
+  if (disabled || !env.redisUrl) return null;
+  if (client && (client.status === 'ready' || client.status === 'connecting' || client.status === 'connect')) {
+    return client;
+  }
+  let Redis;
   try {
-    await redis.connect();
-    // Test the connection
-    await redis.ping();
-    console.log('[Redis] PING successful — connection verified.');
+    // eslint-disable-next-line global-require
+    Redis = require('ioredis');
   } catch (error) {
-    console.error('[Redis] Failed to connect:', error.message);
-    console.warn('[Redis] Server will continue without Redis caching.');
+    disabled = true;
+    logger.warn({ error: error.message }, 'ioredis unavailable — using in-memory stores');
+    return null;
+  }
+
+  try {
+    client = new Redis(env.redisUrl, {
+      connectTimeout: 5000,
+      maxRetriesPerRequest: 1,
+      retryStrategy: (times) => Math.min(times * 500, 5000),
+      enableReadyCheck: true,
+    });
+    client.on('error', (error) => {
+      // ioredis reconnects and retries; keep serving with in-memory fallbacks.
+      logger.warn({ error: error.message }, 'Redis connection issue — serving with in-memory fallbacks');
+    });
+    return client;
+  } catch (error) {
+    disabled = true;
+    logger.warn({ error: error.message }, 'Redis unavailable — using in-memory stores');
+    return null;
   }
 }
 
-/**
- * Gracefully disconnect from Redis.
- */
-async function disconnectRedis() {
-  try {
-    await redis.quit();
-    console.log('[Redis] Disconnected gracefully.');
-  } catch (error) {
-    console.error('[Redis] Error during disconnect:', error.message);
+async function closeRedis() {
+  if (client && (client.status === 'ready' || client.status === 'connecting' || client.status === 'connect')) {
+    await client.quit();
   }
+  client = null;
 }
 
-module.exports = { redis, connectRedis, disconnectRedis };
+module.exports = { getRedis, closeRedis };

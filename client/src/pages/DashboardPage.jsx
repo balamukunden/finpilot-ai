@@ -87,62 +87,26 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const fetchDashboard = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const { data: res } = await api.get('/dashboard');
+      setData(res.data);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        const { data: res } = await api.get('/dashboard');
-        setData(res.data);
-      } catch {
-        // Use demo data if API fails
-        setData({
-          financialScore: 72,
-          income: 85000, expenses: 52000, savings: 33000, savingsRate: 38.8,
-          expenseChange: -5.2,
-          categoryBreakdown: [
-            { category: 'food', amount: 12000, count: 24 },
-            { category: 'rent', amount: 15000, count: 1 },
-            { category: 'transport', amount: 5000, count: 30 },
-            { category: 'shopping', amount: 8000, count: 6 },
-            { category: 'utilities', amount: 4000, count: 4 },
-            { category: 'entertainment', amount: 3000, count: 8 },
-            { category: 'subscriptions', amount: 2500, count: 5 },
-            { category: 'health', amount: 2500, count: 2 },
-          ],
-          recentTransactions: [
-            { id: '1', type: 'expense', amount: 450, category: 'food', merchant: 'Swiggy', date: new Date().toISOString() },
-            { id: '2', type: 'expense', amount: 1200, category: 'transport', merchant: 'Uber', date: new Date(Date.now() - 86400000).toISOString() },
-            { id: '3', type: 'income', amount: 85000, category: 'salary', merchant: 'Company', date: new Date(Date.now() - 172800000).toISOString() },
-            { id: '4', type: 'expense', amount: 2500, category: 'shopping', merchant: 'Amazon', date: new Date(Date.now() - 259200000).toISOString() },
-            { id: '5', type: 'expense', amount: 800, category: 'entertainment', merchant: 'Netflix', date: new Date(Date.now() - 345600000).toISOString() },
-          ],
-          goals: [
-            { id: '1', name: 'Emergency Fund', targetAmount: 200000, currentAmount: 120000, icon: '🏦', color: '#34D399', progress: 60 },
-            { id: '2', name: 'Vacation', targetAmount: 50000, currentAmount: 36500, icon: '✈️', color: '#6366F1', progress: 73 },
-          ],
-          suggestions: [
-            { icon: '💡', text: 'Great savings rate at 38.8%! You\'re above the recommended 20%.' },
-            { icon: '📊', text: 'Your spending decreased by 5.2% vs last month. Keep it up!' },
-            { icon: '🎯', text: 'Emergency Fund is 60% complete. Consider increasing your monthly contribution.' },
-          ],
-          trendData: [
-            { month: 'Feb', income: 80000, expenses: 55000, savings: 25000 },
-            { month: 'Mar', income: 82000, expenses: 48000, savings: 34000 },
-            { month: 'Apr', income: 85000, expenses: 62000, savings: 23000 },
-            { month: 'May', income: 85000, expenses: 51000, savings: 34000 },
-            { month: 'Jun', income: 85000, expenses: 54800, savings: 30200 },
-            { month: 'Jul', income: 85000, expenses: 52000, savings: 33000 },
-          ],
-          user: { name: 'User', level: 7, xp: 340, xpForNextLevel: 500 },
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchDashboard();
   }, []);
 
-  if (loading) {
+  if (loading || (!data && !error)) {
     return (
       <div className="space-y-6">
         {[...Array(4)].map((_, i) => (
@@ -152,7 +116,20 @@ export default function DashboardPage() {
     );
   }
 
-  if (!data) return null;
+  if (error || !data) {
+    return (
+      <div className="glass-card flex flex-col items-center justify-center !py-16 text-center">
+        <p className="text-gray-400 mb-1">We couldn't load your dashboard.</p>
+        <p className="text-sm text-gray-500 mb-4">Please check your connection and try again.</p>
+        <button
+          onClick={fetchDashboard}
+          className="px-4 py-2 bg-primary hover:bg-primary/80 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   const fmt = (n) => `₹${n?.toLocaleString('en-IN') || 0}`;
 

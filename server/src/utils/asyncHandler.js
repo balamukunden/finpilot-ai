@@ -1,12 +1,10 @@
 /**
- * Wraps an async route handler to catch errors and pass them to Express error handler.
- * Eliminates the need for try/catch in every controller.
- *
- * @param {Function} fn - Async route handler (req, res, next) => Promise
- * @returns {Function} Express middleware
+ * Wrap an async route handler so thrown errors reach the error middleware.
  */
-const asyncHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
-};
+function asyncHandler(fn) {
+  return function wrapped(req, res, next) {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
 
 module.exports = asyncHandler;

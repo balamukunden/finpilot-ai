@@ -48,6 +48,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.pytest_cache/
 
 # Agents / AI tooling local state
 .agents/

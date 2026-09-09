@@ -1,0 +1,14 @@
+# Lightweight dependency set for running the test suite locally/CI.
+# EasyOCR/torch is intentionally excluded — tests stub the OCR path.
+# Pins are deliberately loose so the suite runs on newer Python versions.
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+httpx
+Pillow
+numpy
+PyMuPDF
+pytest
+pytest-asyncio

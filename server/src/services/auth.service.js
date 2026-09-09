@@ -1,140 +1,155 @@
-const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
-const User = require('../models/User');
-const ApiError = require('../utils/ApiError');
-const env = require('../config/env');
-const { enforceCooldown, recordFailure, clearFailures } = require('./loginThrottle');
+const User = require('../models/user.model');
+const ApiError = require('../utils/errors');
+const logger = require('../config/logger');
+const { isDbConnected } = require('../config/db');
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  refreshTokenExpiryMs,
+} = require('../utils/jwt');
+const throttle = require('./loginThrottle.service');
 
 function assertDbAvailable() {
-  if (mongoose.connection.readyState !== 1) {
+  if (!isDbConnected()) {
     throw ApiError.serviceUnavailable('Authentication service is temporarily unavailable.');
   }
 }
 
-function generateAccessToken(userId) {
-  return jwt.sign({ userId }, env.jwt.secret, { expiresIn: env.jwt.expiresIn });
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
 }
 
-function generateRefreshToken(userId) {
-  return jwt.sign({ userId, type: 'refresh' }, env.jwt.refreshSecret, { expiresIn: env.jwt.refreshExpiresIn });
-}
-
-function setAuthCookies(res, accessToken, refreshToken) {
-  const isProduction = env.isProd;
-
-  res.cookie('accessToken', accessToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
-    maxAge: 15 * 60 * 1000,
-  });
-
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: '/api/auth/refresh-token',
-  });
-}
-
-function clearAuthCookies(res) {
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken', { path: '/api/auth/refresh-token' });
+function toSafeUser(user) {
+  return user.toJSON();
 }
 
 const authService = {
   async register({ name, email, password }) {
     assertDbAvailable();
 
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = normalizeEmail(email);
 
-    const existingUser = await User.findOne({ email: cleanEmail });
-    if (existingUser) {
-      throw ApiError.conflict('An account with this email already exists', 'EMAIL_ALREADY_EXISTS');
+    const existing = await User.findOne({ email: cleanEmail });
+    if (existing) {
+      throw ApiError.conflict('An account with this email already exists.', 'EMAIL_ALREADY_EXISTS');
     }
 
-    const user = await User.create({ name, email: cleanEmail, password });
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const user = await User.create({ name, email: cleanEmail, passwordHash: password });
 
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    user.refreshTokens.push({ token: refreshToken, expiresAt });
+    const accessToken = signAccessToken(user._id);
+    const refreshToken = signRefreshToken(user._id);
+    user.refreshTokens.push({ token: refreshToken, expiresAt: new Date(Date.now() + refreshTokenExpiryMs()) });
     await user.save();
 
-    return { user, accessToken, refreshToken };
+    return { user: toSafeUser(user), accessToken, refreshToken };
   },
 
   async login({ email, password }) {
     assertDbAvailable();
 
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = normalizeEmail(email);
+    await throttle.enforceCooldown(cleanEmail);
 
-    // Enforce progressive per-account cooldown (429 with retryAfterSeconds).
-    enforceCooldown(cleanEmail);
-
-    const user = await User.findOne({ email: cleanEmail }).select('+password');
+    const user = await User.findOne({ email: cleanEmail }).select('+passwordHash');
     if (!user) {
-      recordFailure(cleanEmail);
-      throw ApiError.unauthorized('Invalid email or password');
+      await throttle.recordFailure(cleanEmail);
+      throw ApiError.unauthorized('Email or password is incorrect.');
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      recordFailure(cleanEmail);
-      throw ApiError.unauthorized('Invalid email or password');
+      await throttle.recordFailure(cleanEmail);
+      throw ApiError.unauthorized('Email or password is incorrect.');
     }
 
-    clearFailures(cleanEmail);
+    await throttle.clearFailures(cleanEmail);
 
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const accessToken = signAccessToken(user._id);
+    const refreshToken = signRefreshToken(user._id);
 
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     user.refreshTokens = user.refreshTokens.filter((rt) => rt.expiresAt > new Date());
-    user.refreshTokens.push({ token: refreshToken, expiresAt });
+    user.refreshTokens.push({ token: refreshToken, expiresAt: new Date(Date.now() + refreshTokenExpiryMs()) });
     user.lastActiveDate = new Date();
     await user.save();
 
-    user.password = undefined;
-    return { user, accessToken, refreshToken };
+    return { user: toSafeUser(user), accessToken, refreshToken };
   },
 
   async refreshToken(token) {
-    if (!token) throw ApiError.unauthorized('Refresh token is required');
+    assertDbAvailable();
+    if (!token) throw ApiError.unauthorized('Refresh token is required.');
 
     let decoded;
     try {
-      decoded = jwt.verify(token, env.jwt.refreshSecret);
-    } catch {
-      throw ApiError.unauthorized('Invalid or expired refresh token');
+      decoded = verifyRefreshToken(token);
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        throw ApiError.unauthorized('Refresh token expired.', 'TOKEN_EXPIRED');
+      }
+      throw ApiError.unauthorized('Invalid or expired refresh token.', 'INVALID_REFRESH_TOKEN');
     }
 
-    const userId = decoded.userId;
+    const user = await User.findById(decoded.userId);
+    if (!user) throw ApiError.unauthorized('User not found.');
 
-    const user = await User.findById(userId);
-    if (!user) throw ApiError.unauthorized('User not found');
+    user.refreshTokens = user.refreshTokens.filter((rt) => rt.expiresAt > new Date());
 
-    const newAccessToken = generateAccessToken(user._id);
-    const newRefreshToken = generateRefreshToken(user._id);
-    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    const storedToken = user.refreshTokens.find((rt) => rt.token === token);
+
+    if (!storedToken) {
+      // The presented token is validly signed but no longer stored on the
+      // user. This is the signature of token reuse after rotation — revoke
+      // every refresh token so a stolen session cannot continue.
+      user.refreshTokens = [];
+      await user.save();
+      logger.warn({ userId: user._id.toString() }, 'Refresh token reuse detected — all sessions revoked.');
+      throw ApiError.unauthorized('Refresh token reuse detected. Please sign in again.', 'REUSE_DETECTED');
+    }
+
+    // Token rotation: the used refresh token is invalidated immediately.
+    user.refreshTokens = user.refreshTokens.filter((rt) => rt.token !== token);
+
+    const accessToken = signAccessToken(user._id);
+    const newRefreshToken = signRefreshToken(user._id);
+    user.refreshTokens.push({
+      token: newRefreshToken,
+      expiresAt: new Date(Date.now() + refreshTokenExpiryMs()),
+    });
+    await user.save();
+
+    return { accessToken, refreshToken: newRefreshToken };
   },
 
   async logout(userId, refreshToken) {
     const user = await User.findById(userId);
-    if (user) {
+    if (user && refreshToken) {
       user.refreshTokens = user.refreshTokens.filter((rt) => rt.token !== refreshToken);
       await user.save();
     }
   },
 
-  async forgotPassword(email) {
-    return { message: 'Password reset link sent.' };
-  },
+  async changePassword(userId, currentPassword, newPassword) {
+    assertDbAvailable();
 
-  async resetPassword(token, newPassword) {
-    return { message: 'Password reset successful' };
+    const user = await User.findById(userId).select('+passwordHash');
+    if (!user) throw ApiError.notFound('User not found.');
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      throw ApiError.badRequest('Current password is incorrect.', [], 'INVALID_CURRENT_PASSWORD');
+    }
+    if (currentPassword === newPassword) {
+      throw ApiError.badRequest('New password must be different from the current password.');
+    }
+
+    user.passwordHash = newPassword;
+    // Changing the password invalidates every active session.
+    user.refreshTokens = [];
+    await user.save();
+
+    return { changed: true };
   },
 };
 
-module.exports = { authService, setAuthCookies, clearAuthCookies };
+module.exports = authService;
