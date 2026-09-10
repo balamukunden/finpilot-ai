@@ -1,6 +1,3 @@
-const { connectDB } = require('../src/config/db');
-const logger = require('../src/config/logger');
-
 /**
  * Vercel Serverless entry point.
  *
@@ -9,21 +6,24 @@ const logger = require('../src/config/logger');
  * (MONGODB_URI, JWT secrets, …) are missing.  This lets operators verify
  * that the function is deployed and routable without needing every secret
  * configured first.
+ *
+ * IMPORTANT: All app-level requires are deferred (lazy-loaded) so that
+ * module-level side-effects in env.js (which throws when MONGODB_URI is
+ * missing in production) never run during a health check.
  */
 let app = null;
+let initialized = false;
 
 function getApp() {
   if (!app) {
-    // eslint-disable-next-line global-require
     app = require('../src/app');
   }
   return app;
 }
 
-let initialized = false;
-
 async function initialize() {
   if (initialized) return;
+  const { connectDB } = require('../src/config/db');
   await connectDB();
   initialized = true;
 }
@@ -61,6 +61,7 @@ module.exports = async (req, res) => {
   try {
     await initialize();
   } catch (error) {
+    const logger = require('../src/config/logger');
     logger.error({ error: error.message }, 'Failed to initialize database');
     return res.status(503).json({
       success: false,
