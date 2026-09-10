@@ -22,8 +22,15 @@ Current live state (verified 2026-09-10):
 3. **Database Access** → Add Database User:
    - Set username + a strong password (use `openssl rand -base64 24`).
    - Roles: **readWrite** on the `finpilot` database only (least privilege).
-4. **Network Access** → Add IP `0.0.0.0/0` to allow Vercel serverless
-   (serverless functions have dynamic IPs; this is the standard workaround).
+   - Never use the Atlas owner/admin account as the application credential.
+4. **Network Access** — Vercel serverless functions have dynamic egress IPs,
+   so Atlas cannot be restricted to fixed IPs. Opening the cluster to
+   `0.0.0.0/0` is the **standard workaround, but it accepts ALL IPs** — it is
+   NOT a hardened network boundary. This is an accepted limitation of the
+   serverless architecture; it is mitigated by (a) the least-privilege
+   `readWrite` DB user above and (b) a strong generated password. If your
+   cluster already has a VPC peering/private-link option available to your
+   backend, prefer that instead.
 5. **Connect** → Drivers → copy the connection string, e.g.
    `mongodb+srv://<user>:<password>@<cluster>.mongodb.net/finpilot?retryWrites=true&w=majority`.
 6. Set it on Vercel (see section 5).
