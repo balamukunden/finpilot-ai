@@ -52,3 +52,5 @@ venv/
 
 # Agents / AI tooling local state
 .agents/
+.vercel
+.env*
