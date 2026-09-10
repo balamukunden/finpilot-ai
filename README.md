@@ -349,9 +349,11 @@ ai-service: python scripts/check_runtime.py   # runtime deps self-check (in imag
   exercised against fake responses only; real provider behavior must be
   validated with a live key during deployment.
 - **In-memory rate limiting stores** reset across instances — see Redis above.
-- **Live Vercel/Atlas/Redis deploys** were not executed during development
-  (no credentials/Docker in the dev environment); configuration is
-  documented and validated by tests, not by a live deployment.
+- **Live cloud state (verified 2026-09-10)**: frontend and backend are deployed
+  to Vercel and the backend health endpoint responds `200 configuration_required`.
+  MongoDB Atlas, Redis, object storage, and a hosted LLM provider still require
+  credentials/signups — see `CLOUD_DEPLOYMENT.md` for the step-by-step guide.
+  Until `MONGODB_URI` is set, all non-health endpoints return 503 by design.
 - Helmet CSP is enabled in production; images fetched cross-origin (signed
   receipt URLs) are permitted via `crossOriginResourcePolicy: cross-origin`.
 - Investment guidance is educational and clearly labeled, never certification.
