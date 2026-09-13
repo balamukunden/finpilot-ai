@@ -29,6 +29,22 @@ async function initialize() {
 }
 
 module.exports = async (req, res) => {
+  // ── Fast-path: root service info ────────────────────────────────
+  // Always reachable, DB-independent, safe for load-balancers/monitors.
+  if (req.url === '/' || req.url === '/?') {
+    try {
+      const { buildServiceInfo } = require('../src/utils/serviceInfo');
+      return res.status(200).json(buildServiceInfo());
+    } catch {
+      return res.status(200).json({
+        success: true,
+        service: 'FinPilot API',
+        status: 'online',
+        health: '/api/health',
+      });
+    }
+  }
+
   // ── Fast-path: health endpoint ──────────────────────────────────
   // Always reachable.  Never depends on DB, Redis, AI, or secrets.
   if (req.url === '/api/health' || req.url === '/api/health/') {

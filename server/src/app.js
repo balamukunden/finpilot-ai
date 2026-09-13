@@ -82,7 +82,8 @@ if (!env.isProd) {
   }
 }
 
-// Health check (no DB / Redis / AI dependency)
+// Root service info (no DB / Redis / AI dependency) + health check
+app.use('/', require('./routes/root.routes'));
 app.use('/api/health', require('./routes/health.routes'));
 
 // CSRF protection for cookie-authenticated mutating requests.
