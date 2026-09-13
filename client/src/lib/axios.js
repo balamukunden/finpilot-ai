@@ -1,7 +1,20 @@
 import axios from 'axios';
 
+// Normalize the production API base URL so requests include the /api prefix.
+//
+// VITE_API_URL points at the backend origin (e.g. https://finpilot-ai-one.vercel.app),
+// while the backend mounts all routes under /api. Append it exactly once,
+// no matter whether the configured URL already ends with /api or a trailing slash.
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+
+function normalizeApiBaseUrl(raw) {
+  if (!raw) return '/api';
+  const trimmed = String(raw).trim().replace(/\/+$/, '').replace(/\/api+$/i, '');
+  return trimmed ? `${trimmed}/api` : '/api';
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: normalizeApiBaseUrl(configuredApiUrl),
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
