@@ -1,6 +1,6 @@
 # FinPilot AI — Production Deployment Checklist
 
-Last updated: 2026-09-13
+Last updated: 2026-09-13 (update 2: Vercel CLI authenticated, deployments verified Ready)
 
 ## Live URLs
 
@@ -12,6 +12,17 @@ Last updated: 2026-09-13
 
 Backend health returns `200 { configuration_required }`. All other endpoints
 return `503 SERVICE_UNAVAILABLE` until MongoDB is configured on Vercel.
+
+## Vercel access (2026-09-13)
+
+- [x] `vercel` CLI 59.16.0 installed.
+- [x] Authenticated as `balamukunden` (team `baymax5`).
+- [x] Both projects verified by CLI; production deployments **Ready** on main
+      `5794dbb`:
+      - Backend `finpilot-ai` → `dpl_5PqN3BrnxsquwPP85fr9CeRfrG4q` → aliased
+        `https://finpilot-ai-one.vercel.app`
+      - Frontend `balamukunden-finpilot-ai` → `dpl_FLTfEmX4UCE9cBmkhUFDoH9ytw96`
+        → aliased `https://balamukunden-finpilot-ai-baymax5.vercel.app`
 
 ## Vercel frontend (project: `balamukunden-finpilot-ai`)
 

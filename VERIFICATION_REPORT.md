@@ -1,66 +1,68 @@
 # FinPilot AI — Verification Report
 
-Date: 2026-09-13 (update)
-Repo state: `main` @ `335555f` (pushed to origin/main)
+Date: 2026-09-13 (update 2)
+Repo state: `main` @ `5794dbb` (pushed to origin/main)
 
 ## Summary
 
 | Check | Result |
 |---|---|
 | Server test suite | **81/81 PASS** |
-| Client production build | **PASS** (Vite, 2685 modules) |
+| Client production build | **PASS** |
 | Backend `npm audit` | 0 vulnerabilities |
 | Client `npm audit` | 0 vulnerabilities |
-| Secret-safety scan (tracked files) | **PASS** — no real secrets tracked |
-| Live frontend (`/`, `/login`, `/register`, `/dashboard`, `/expenses`, `/scanner`, `/goals`, `/chat`) | **PASS** — HTTP 200 on all SPA routes |
-| Live backend `/api/health` | HTTP 200, but `status: configuration_required` |
-| Live DB-backed operation (register) | **BLOCKED** — HTTP 503, `MONGODB_URI` not configured on Vercel |
+| Secret-safety scan (tracked files) | **PASS** — no real secrets; no Atlas URI anywhere in the workspace |
+| No `localStorage`/`sessionStorage` token storage | **PASS** (only README documentation of the httpOnly-cookie model) |
+| Vercel CLI | **Authenticated** as `balamukunden` (team `baymax5`) via device OAuth |
+| Backend production deployment (CLI `vercel inspect`) | **Ready** — `dpl_5PqN3BrnxsquwPP85fr9CeRfrG4q`, aliased `finpilot-ai-one.vercel.app`, ~17 min ago (main `5794dbb`) |
+| Frontend production deployment (CLI `vercel inspect`) | **Ready** — `dpl_FLTfEmX4UCE9cBmkhUFDoH9ytw96`, aliased `balamukunden-finpilot-ai-baymax5.vercel.app`, ~18 min ago (main `5794dbb`) |
+| Live frontend SPA routes | **PASS** — `/`, `/login`, `/register`, `/dashboard`, `/expenses`, `/scanner`, `/goals`, `/chat` → 200 |
+| Live backend `/api/health` | HTTP 200, `status: configuration_required` |
+| Live DB-backed operation | **BLOCKED** — 503, `MONGODB_URI` absent |
 
-## Errors fixed in this pass
+## Vercel backend env (verified via CLI, names only)
 
-1. **Stale `server/.env`** — removed obsolete keys (`REDIS_HOST`,
-   `REDIS_PORT`, `REDIS_PASSWORD`, `DEFAULT_CURRENCY`, `ADMIN_RESET_PASSWORD`),
-   aligned all keys with `server/.env.example`; `REDIS_URL` left empty so local
-   tests use the fast in-memory fallback (an unreachable local Redis was
-   stalling every request via connect-timeout/retry backoff).
-2. **Non-deterministic deployment test** (`server/tests/deployment.test.js`) —
-   the child process now runs from an isolated temp cwd (no `.env`) and loads
-   `env.js` by absolute path, stripping inherited JWT secrets before applying
-   overrides. Production validation logic untouched. **Result: 81/81.**
-3. **Stale dependencies** — server `node_modules` was missing `supertest`;
-   fixed with `npm ci` (server + client).
-4. **Vercel CLI** — installed (`vercel` 59.16.0 via `npm i -g vercel`).
-5. **Git** — pushed deploy fix to `origin/main` (`289a218..335555f`).
+Configured (Production): `NODE_ENV`, `JWT_SECRET`, `JWT_REFRESH_SECRET`,
+`CLIENT_URL`, `COOKIE_SAME_SITE`, `COOKIE_SECURE`, `AI_SERVICE_KEY`.
 
-## Current blockers (require external credentials/access)
+NOT configured (Production): **`MONGODB_URI`** (core blocker), `REDIS_URL`,
+`AI_SERVICE_URL`, `RECEIPT_STORAGE_*`.
 
-1. **`MONGODB_URI` not configured on Vercel** — live DB ops return 503.
-   Requires a MongoDB Atlas cluster + a least-privilege `readWrite` user, then
-   setting `MONGODB_URI` in the Vercel backend's Production environment.
-2. **Vercel CLI not authenticated** — `vercel whoami` reports "Logged out."
-   Interactive login (`vercel login`) or an access token is required to inspect
-   env vars, force redeploys, and read deployment logs. Until then, deployments
-   rely on the existing Git integration (push to `main` triggers rebuilds).
+Frontend env (Production): `VITE_API_URL` configured.
 
-## Pending (feature stages — not deployment blockers)
+## Work completed this pass
 
-- `REDIS_URL` — NOT CONFIGURED (in-memory fallback active by design).
-- `RECEIPT_STORAGE_*` (S3/R2) — NOT CONFIGURED (local dev provider only).
-- AI service (FastAPI container) — NOT DEPLOYED (needs container host).
-- Hosted LLM — NOT CONFIGURED.
-- OCR live verification — NOT VERIFIED (heavy Python deps not installed locally).
+1. **Vercel CLI authenticated** — `vercel login --non-interactive` device OAuth
+   completed; `vercel whoami` → `balamukunden`.
+2. **Project identity verified** — frontend `balamukunden-finpilot-ai`
+   (root `client`), backend `finpilot-ai` (root `server`); no duplicates, no
+   root `vercel.json`, no `server-new`.
+3. **Production deployments confirmed Ready** via CLI for current `main`.
+4. **Full local regression** re-run: 81/81 server tests, client build PASS,
+   0 vulnerabilities (server + client).
 
-## Local verification commands (reproducible)
+## Core blocker — MongoDB Atlas (requires user-only action)
 
-```bash
-cd server && npm ci && npm test        # 81/81 PASS, 0 vulnerabilities
-cd client && npm ci && npm run build   # PASS, 0 vulnerabilities
-```
+`MONGODB_URI` is not set on the Vercel backend and cannot be provisioned
+autonomously: there is no Atlas CLI/mongocli/mongosh installed, no Atlas API
+keys in the environment or cached config, no Atlas URI in the workspace or
+clipboard, no Docker. Creating an Atlas account + cluster is an external
+signup step only the owner can perform.
 
-## Not verified / environment notes
+Needed actions (once done, I can finish the loop in minutes):
+1. Create Atlas M0 cluster (`finpilot` DB, least-privilege `readWrite` app
+   user, network access for Vercel serverless — see `CLOUD_DEPLOYMENT.md`).
+2. Provide the `mongodb+srv://` URI (or paste it into Vercel dashboard for the
+   `finpilot-ai` project, Production env).
+3. I then add/set it, redeploy, and run the live smoke suite (register, login,
+   cookies, refresh, logout, dashboard, transactions, goals, CORS, CSRF, IDOR).
 
-- ai-service Python tests: NOT RUN (no local `.venv`; would pull torch/EasyOCR).
-- Vercel deployment logs: not inspectable without CLI auth.
-- Live CORS/CSRF/IDOR against the backend require a configured DB and are
-  covered by the automated suite (auth.test.js, security.test.js,
-  transactions.test.js, goals.test.js) which passes 100%.
+## Other infrastructure (separate stages — not blockers)
+
+- Redis: NOT CONFIGURED (in-memory fallback by design).
+- R2/S3: NOT CONFIGURED.
+- AI service: NOT DEPLOYED (needs container host).
+- Hosted LLM: NOT CONFIGURED.
+- OCR live: NOT VERIFIED.
+- AI tests: NOT RUN (no local venv; heavy torch/EasyOCR deps intentionally not
+  installed).
